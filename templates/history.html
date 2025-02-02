@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interaction History</title>
+</head>
+<body>
+    <h1>Your History</h1>
+    <ul>
+        {% for entry in history %}
+            <li><strong>Question:</strong> {{ entry.question }} <br> <strong>Answer:</strong> {{ entry.answer }}</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

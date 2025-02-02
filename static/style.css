@@ -1,0 +1,54 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f8f9fa;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+h1, .card-title {
+    font-size: 2rem;
+    font-weight: 600;
+}
+
+.card {
+    border-radius: 8px;
+}
+
+.card-body {
+    padding: 2rem;
+}
+
+form .form-control {
+    padding: 10px;
+    font-size: 1rem;
+}
+
+form button {
+    font-size: 1.1rem;
+}
+
+.mt-3 {
+    margin-top: 1rem;
+}
+
+.w-100 {
+    width: 100%;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.link-primary {
+    color: #007bff;
+}
+
+.link-primary:hover {
+    text-decoration: underline;
+}
