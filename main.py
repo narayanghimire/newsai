@@ -15,9 +15,6 @@ load_dotenv()
 secret_key = os.getenv("SECRET_KEY")
 # Initialize FastAPI
 app = FastAPI()
-import nltk
-nltk.download('punkt')
-
 
 
 app.add_middleware(SessionMiddleware, secret_key=secret_key)
