@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict
-from app.schemas.schemas import NewsKeywordResponse, NewsSummaryResponse
+from app.schemas.schemas import NewsKeywordResponse, NewsSummaryResponse, ExtractedRawHtmlResponse
+
 
 class BaseLLMService(ABC):
 

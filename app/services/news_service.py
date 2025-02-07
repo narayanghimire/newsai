@@ -1,14 +1,17 @@
 import asyncio
 import os
+import urllib.parse
+from datetime import datetime, timedelta
 
 import httpx
 from dotenv import load_dotenv
+from fastapi import HTTPException
+from newspaper import Article
 
 from app.model.models import NewsSource
 from sqlalchemy.orm import Session
 from app.model.models import SummarizedArticle
 from app.schemas.schemas import NewsKeywordResponse
-from app.services.rag_service.rag_service import RagService
 
 load_dotenv()
 
@@ -17,75 +20,82 @@ class NewsService:
     BASE_URL = "https://newsapi.org/v2/everything"
 
     @staticmethod
-    async def fetch_news_from_newsapi(prompt_keywords: NewsKeywordResponse):
+    async def fetch_news_from_newsapi(prompt_keywords):
         """
         Fetches news articles from NewsAPI based on extracted keywords.
-        Then, it scrapes each article's URL to retrieve full text.
+        Then, it processes each article's URL to retrieve full content.
         Returns:
-        - news_data: List of articles with full content.
-        - source_urls: List of original article URLs.
+        - List of news articles with full content and metadata.
         """
+        today = datetime.utcnow()
+        from_date = (today - timedelta(days=7)).strftime("%Y-%m-%d")
+
         params = {
             "q": prompt_keywords.search_query,
-            "pageSize": 3,
+            "sortBy": "relevancy",
+            "from": from_date,
+            "language": "en",
+            "pageSize": 20,
             "apiKey": NewsService.API_KEY,
         }
-
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(follow_redirects=True) as client:
                 response = await client.get(NewsService.BASE_URL, params=params)
                 response.raise_for_status()
-
                 data = response.json()
-                articles = data.get("articles", [])
 
+                articles = data.get("articles", [])
                 if not articles:
                     print("No articles found.")
-                    return [], []
+                    return []
 
-                source_urls = [article["url"] for article in articles]
-                full_contents = await asyncio.gather(
-                    *[NewsService.scrape_full_content(url) for url in source_urls]
+                # Extract content asynchronously for all articles
+                extracted_results = await asyncio.gather(
+                    *[NewsService.extract_news(article["url"]) for article in articles]
                 )
 
-                news_data = [
-                    {
-                        "content": full_text,
+                news_data = []
+                for article, content in zip(articles, extracted_results):
+                    news_entry = {
+                        "content": content if content else "Content extraction failed.",
+                        "title": article.get("title", ""),
+                        "url": article.get("url", ""),
+                        "publishedAt": article.get("publishedAt", "")
                     }
-                    for article, full_text in zip(articles, full_contents)
-                ]
-                await RagService.store_news_in_vector_db(news_data, source_urls)
+                    news_data.append(news_entry)
 
-                return news_data, source_urls
+                return news_data
 
-        except httpx.RequestError as e:
+        except Exception as e:
             print(f"Error while fetching news: {e}")
-            return [], []
-        except KeyError as e:
-            print(f"Error processing news data: {e}")
-            return [], []
+            return []
 
     @staticmethod
-    async def scrape_full_content(article_url: str) -> str:
-        """
-        Scrapes full news content from the article URL.
-        """
+    async def extract_news(url: str):
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(article_url, timeout=10)
-                if response.status_code == 200:
-                    from bs4 import BeautifulSoup
-                    soup = BeautifulSoup(response.text, "html.parser")
-                    paragraphs = soup.find_all("p")
-                    return " ".join(p.get_text() for p in paragraphs)
-                else:
-                    print(f"Failed to fetch article content from {article_url}")
-                    return "Content not available."
-        except httpx.RequestError as e:
-            print(f"Error scraping article content from {article_url}: {e}")
-            return "Content not available."
+            async with httpx.AsyncClient(follow_redirects=True) as client:
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+                }
+                response = await client.get(url, headers=headers, timeout=10)
+                response.raise_for_status()
+                html_content = response.text
 
+            # Parse article content
+            article = Article(url)
+            article.download(input_html=html_content)
+            article.parse()
 
+            return article.text
+
+        except httpx.HTTPStatusError as e:
+            print(f"HTTP error {e.response.status_code} for URL: {url}")
+            return None
+        except Exception as e:
+            print(f"Error extracting content from {url}: {str(e)}")
+            return None
+
+    @staticmethod
     def get_summarized_articles(user_id: int, db: Session):
         summaries = (
             db.query(SummarizedArticle)
@@ -103,5 +113,3 @@ class NewsService:
             }
             for summary in summaries
         ]
-
-

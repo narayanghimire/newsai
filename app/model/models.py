@@ -23,6 +23,20 @@ class NewsSource(Base):
     created_at = Column(DateTime, default=func.now())
 
 
+class NewsArticle(Base):
+    """
+    Stores full news article content in SQLite.
+    Pinecone will only store embeddings and metadata.
+    """
+    __tablename__ = "news_articles"
+    article_id = Column(Integer, primary_key=True, index=True)
+    url = Column(Text, unique=True, nullable=False)
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    published_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=func.now())
+
+
 class SummarizedArticle(Base):
     __tablename__ = "summarized_articles"
     summary_id = Column(Integer, primary_key=True, index=True)

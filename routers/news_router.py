@@ -1,9 +1,11 @@
+from itertools import count
+
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 
 from app.database.database import SessionLocal
 from app.model.models import SummarizedArticle, NewsSource, User
-from app.schemas.schemas import NewsRequest
+from app.schemas.schemas import NewsRequest, NewsSummaryResponse
 from app.services.llm_manager import LLMManager
 from app.services.news_service import NewsService
 from fastapi import Request, Response
@@ -52,23 +54,27 @@ async def generate_news(
         user: User = Depends(get_current_user)
 ):
     llm_service = LLMManager.get_llm(selected_llm)
-    print(f"SElECTED LLM :" + selected_llm)
-    newsKeywordResponse = llm_service.generate_news_keywords(request.prompt)
-    similar_articles = await RagService.query_similar_articles(request.prompt)
-    news_data, source_urls = await NewsService.fetch_news_from_newsapi(newsKeywordResponse)
 
-    if not news_data and not similar_articles:
+    news_keyword_response = llm_service.generate_news_keywords(request.prompt)
+
+    news_data = await NewsService.fetch_news_from_newsapi(news_keyword_response)
+
+    await RagService.store_new_articles_in_vector_db(news_data, db)
+    similar_articles = await RagService.query_similar_articles(news_keyword_response, db)
+    if not similar_articles:
         raise HTTPException(status_code=404, detail="No relevant news found.")
 
-    all_news_data = news_data + [article["content"] for article in similar_articles]
-    summarized_text = llm_service.generate_summary(all_news_data, request.prompt)
+    news_summary_response = llm_service.generate_summary(similar_articles, request.prompt)
+    await save_article_to_db(news_summary_response, db, user, request.prompt)
 
-    await save_article_to_db(source_urls, summarized_text, db, user, request.prompt)
-    return {"summary": summarized_text.summary}
+    return {
+        "summary": news_summary_response.summary,
+        "source": news_summary_response.source_urls
+    }
 
 
-async def save_article_to_db(source_urls, summarized_content, db: Session, user, prompt: str):
-    site_url = ";".join(source_urls) if isinstance(source_urls, list) else ""
+async def save_article_to_db(news_summary_response: NewsSummaryResponse, db: Session, user, prompt: str):
+    site_url = ";".join(news_summary_response.source_urls)
     news_source = NewsSource(source_name=prompt, site_url=site_url)
     db.add(news_source)
     db.commit()
@@ -77,7 +83,7 @@ async def save_article_to_db(source_urls, summarized_content, db: Session, user,
     summarized_article = SummarizedArticle(
         user_id=user.user_id,
         source_id=news_source.source_id,
-        summarized_content=summarized_content.summary,
+        summarized_content=news_summary_response.summary,
         prompt=prompt,
     )
     db.add(summarized_article)

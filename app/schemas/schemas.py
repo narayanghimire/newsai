@@ -16,9 +16,13 @@ class NewsKeywordResponse(BaseModel):
     search_query: str
     keywords: List[str]
 
+class ExtractedRawHtmlResponse(BaseModel):
+    data: str
+
 class NewsSummaryResponse(BaseModel):
     """Represents the structured response containing extracted keywords."""
     summary: str
+    source_urls: List[str]
 
 class NewsRequest(BaseModel):
     prompt: str
@@ -36,7 +40,7 @@ class UserResponse(UserBase):
 # NewsSource Schema
 class NewsSourceBase(BaseModel):
     source_name: str
-    site_url: str  # Corrected from api_url to site_url
+    site_url: str  #
 
 class NewsSourceCreate(NewsSourceBase):
     pass

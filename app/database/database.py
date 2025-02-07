@@ -16,5 +16,4 @@ DATABASE_URL = f'sqlite:///{db_path}/{db_file_name}'
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# ✅ FIXED: Correctly assign declarative base
 Base = declarative_base()

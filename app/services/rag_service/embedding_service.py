@@ -2,7 +2,7 @@ from sentence_transformers import SentenceTransformer
 
 
 class EmbeddingService:
-    model = SentenceTransformer("intfloat/multilingual-e5-large")  # Using Pinecone's recommended model
+    model = SentenceTransformer("intfloat/multilingual-e5-large")
 
     @staticmethod
     async def get_embedding(text: str):

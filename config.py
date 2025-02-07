@@ -9,7 +9,6 @@ pc = Pinecone(api_key=PINECONE_API_KEY)
 
 # Create a serverless index
 index_name = "news-index"
-
 if not pc.has_index(index_name):
     pc.create_index(
         name=index_name,
