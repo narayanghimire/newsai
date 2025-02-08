@@ -76,7 +76,7 @@ class RagService:
             return []
 
         keyword_embedding = await EmbeddingService.get_embedding(", ".join(news_keyword.keywords))
-        results = news_index.query(vector=keyword_embedding, top_k=10, include_metadata=True)
+        results = news_index.query(vector=keyword_embedding, top_k=5, include_metadata=True)
 
         relevant_articles = []
         for r in results["matches"]:

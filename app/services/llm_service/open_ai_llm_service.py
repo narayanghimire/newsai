@@ -58,9 +58,8 @@ class OpenAILLMService(BaseLLMService):
             combined_news = "\n\n".join(
                 [
                     f"Description: {item['content']}\nSource: {item['url']}"
+                    for item in news_data[:5]
                     if isinstance(item, dict) and 'content' in item and 'url' in item
-                    else item
-                    for item in news_data
                 ]
             )
 
