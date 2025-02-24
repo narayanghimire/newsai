@@ -104,7 +104,7 @@
     ```
 2. Navigate to the project directory:
     ```bash
-    cd ai-news-aggregator
+    cd newsai
     ```
 3. Install dependencies:
     ```bash
