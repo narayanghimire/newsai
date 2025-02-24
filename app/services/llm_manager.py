@@ -2,6 +2,9 @@ import os
 from typing import Dict
 
 from dotenv import load_dotenv
+
+from app.services.llm_service.gemini_llm_service import GeminiLlmService
+from app.services.llm_service.groq_llm_service import GroqLlmService
 from app.services.llm_service.open_ai_llm_service import OpenAILLMService
 
 load_dotenv()
@@ -9,6 +12,8 @@ load_dotenv()
 class LLMManager:
     _models: Dict[str, object] = {
         "openai": OpenAILLMService(api_key=os.getenv("OPENAI_API_KEY")),
+        "gemini": GeminiLlmService(api_key=os.getenv("GEMINI_API_KEY")),
+        "groq": GroqLlmService(api_key=os.getenv("GROQ_API_KEY")),
     }
 
     _default_model = "openai"

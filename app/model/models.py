@@ -1,7 +1,14 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, func
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Table, func
 from sqlalchemy.orm import relationship
-
 from app.database.database import Base
+
+# Association Table for Many-to-Many Relationship
+summarized_article_news_article = Table(
+    "summarized_article_news_article",
+    Base.metadata,
+    Column("summary_id", Integer, ForeignKey("summarized_articles.summary_id"), primary_key=True),
+    Column("article_id", Integer, ForeignKey("news_articles.article_id"), primary_key=True),
+)
 
 
 class User(Base):
@@ -12,22 +19,10 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     role = Column(String(20), default="user")
     created_at = Column(DateTime, default=func.now())
+
     articles = relationship("SummarizedArticle", back_populates="user")
 
-
-class NewsSource(Base):
-    __tablename__ = "news_sources"
-    source_id = Column(Integer, primary_key=True, index=True)
-    source_name = Column(String(100), nullable=False)
-    site_url = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=func.now())
-
-
 class NewsArticle(Base):
-    """
-    Stores full news article content in SQLite.
-    Pinecone will only store embeddings and metadata.
-    """
     __tablename__ = "news_articles"
     article_id = Column(Integer, primary_key=True, index=True)
     url = Column(Text, unique=True, nullable=False)
@@ -36,15 +31,14 @@ class NewsArticle(Base):
     published_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=func.now())
 
-
 class SummarizedArticle(Base):
     __tablename__ = "summarized_articles"
     summary_id = Column(Integer, primary_key=True, index=True)
-    source_id = Column(Integer, ForeignKey("news_sources.source_id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     summarized_content = Column(Text, nullable=False)
     prompt = Column(Text, nullable=False)
     created_at = Column(DateTime, default=func.now())
+    llm_model = Column(String(50), nullable=False)  # Store LLM Model Name
 
     user = relationship("User", back_populates="articles")
-    source = relationship("NewsSource")
+    articles = relationship("NewsArticle", secondary=summarized_article_news_article, backref="summaries")

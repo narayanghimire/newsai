@@ -41,7 +41,7 @@
         .chat-input input {
             height: 40px;
         }
-        .summary-full {
+        .summary-full, .source-urls {
             display: none;
         }
         .spinner {
@@ -55,13 +55,11 @@
     <div class="container-fluid">
         <div class="row mt-3">
             <div class="col-12 d-flex justify-content-between">
-                <div>
-                    <div class="dropdown">
-                        <button class="btn btn-secondary dropdown-toggle" type="button" id="llmDropdown" data-bs-toggle="dropdown">
-                            Loading...
-                        </button>
-                        <ul class="dropdown-menu" id="llmList"></ul>
-                    </div>
+                <div class="dropdown">
+                    <button class="btn btn-secondary dropdown-toggle" type="button" id="llmDropdown" data-bs-toggle="dropdown">
+                        Loading...
+                    </button>
+                    <ul class="dropdown-menu" id="llmList"></ul>
                 </div>
                 <h3>Welcome, {{ user.username }}</h3>
                 <a href="/users/logout" class="btn btn-danger">Logout</a>
@@ -74,6 +72,7 @@
                 <ul class="list-group">
                     {% for entry in history %}
                         <li class="list-group-item">
+                            <p><strong>Model:</strong> {{ entry.llm_model }}</p>
                             <p><strong>Question:</strong> {{ entry.prompt }}</p>
                             <p><strong>Created At:</strong> {{ entry.created_at }}</p>
                             <p>
@@ -86,6 +85,14 @@
                                 </span>
                             </p>
                             <button class="btn btn-link toggle-summary" data-id="{{ entry.summary_id }}">Read More</button>
+                            <button class="btn btn-sm btn-info toggle-urls" data-id="{{ entry.summary_id }}">Show URLs</button>
+                            <div class="source-urls" id="urls-{{ entry.summary_id }}">
+                                <ul>
+                                    {% for url in entry.source_urls %}
+                                        <li><a href="{{ url }}" target="_blank">{{ url }}</a></li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
                         </li>
                     {% endfor %}
                 </ul>
@@ -93,14 +100,11 @@
 
             <div class="chat">
                 <div class="chat-messages" id="chat-messages"></div>
-
-                <!-- Spinner -->
                 <div class="spinner" id="spinner">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
                 </div>
-
                 <form id="chat-form" class="chat-input d-flex">
                     <input type="text" id="chat-input" class="form-control me-2" placeholder="Type your message..." required>
                     <button type="submit" class="btn btn-primary">Send</button>
@@ -110,116 +114,146 @@
     </div>
 
     <script>
-        document.addEventListener("DOMContentLoaded", async function () {
-            const llmDropdown = document.getElementById("llmDropdown");
-            const llmList = document.getElementById("llmList");
+      document.addEventListener("DOMContentLoaded", async function () {
+    const llmDropdown = document.getElementById("llmDropdown");
+    const llmList = document.getElementById("llmList");
+    const chatMessages = document.getElementById("chat-messages");
+    const chatForm = document.getElementById("chat-form");
+    const chatInput = document.getElementById("chat-input");
+    const spinner = document.getElementById("spinner");
 
-            try {
-                const selectedResponse = await fetch("/news/llm/selected");
-                const selectedData = await selectedResponse.json();
-                let selectedModel = selectedData.selected_llm || "openai";
-                llmDropdown.textContent = selectedModel;
+    try {
+        const selectedResponse = await fetch("/news/llm/selected");
+        const selectedData = await selectedResponse.json();
+        let selectedModel = selectedData.selected_llm || "openai";
+        llmDropdown.textContent = selectedModel;
+        changeBackgroundColor(selectedModel);
 
-                const response = await fetch("/news/available-llms");
-                const data = await response.json();
+        const response = await fetch("/news/available-llms");
+        const data = await response.json();
+        llmList.innerHTML = "";
 
-                data.models.forEach(model => {
-                    let listItem = document.createElement("li");
-                    listItem.innerHTML = `<a class="dropdown-item" href="#" onclick="selectLLM('${model}')">${model}</a>`;
-                    llmList.appendChild(listItem);
-                });
-            } catch (error) {
-                console.error("Failed to fetch LLM models:", error);
-            }
+        data.models.forEach(model => {
+            let listItem = document.createElement("li");
+            let anchor = document.createElement("a");
+            anchor.classList.add("dropdown-item");
+            anchor.href = "#";
+            anchor.textContent = model;
+            anchor.addEventListener("click", () => selectLLM(model));
+            listItem.appendChild(anchor);
+            llmList.appendChild(listItem);
+        });
 
-            document.querySelectorAll(".toggle-summary").forEach(button => {
-                button.addEventListener("click", function () {
-                    let summaryId = this.getAttribute("data-id");
-                    let preview = document.getElementById(`preview-${summaryId}`);
-                    let full = document.getElementById(`full-${summaryId}`);
+    } catch (error) {
+        console.error("Failed to fetch LLM models:", error);
+    }
 
-                    if (full.style.display === "none") {
-                        preview.style.display = "none";
-                        full.style.display = "inline";
-                        this.textContent = "Show Less";
-                    } else {
-                        preview.style.display = "inline";
-                        full.style.display = "none";
-                        this.textContent = "Read More";
-                    }
-                });
+    chatForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        const userMessage = chatInput.value.trim();
+        if (!userMessage) return;
+
+        // Display user message (Blue background)
+        const userMsgElement = document.createElement("div");
+        userMsgElement.innerHTML = `<strong>You:</strong> ${userMessage}`;
+        userMsgElement.style.backgroundColor = "#cce5ff";
+        userMsgElement.style.padding = "8px";
+        userMsgElement.style.borderRadius = "5px";
+        userMsgElement.style.marginBottom = "5px";
+        chatMessages.appendChild(userMsgElement);
+
+        // Clear input and show loader
+        chatInput.value = "";
+        spinner.style.display = "block";
+
+        try {
+            const response = await fetch("/news/generate-news", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ prompt: userMessage }),
             });
-        });
 
-        async function selectLLM(modelName) {
-            try {
-                const response = await fetch(`/news/llm/select/${modelName}`, { method: "POST" });
+            const data = await response.json();
+            spinner.style.display = "none";
 
-                if (response.ok) {
-                    alert(`LLM switched to: ${modelName}`);
-                    document.getElementById("llmDropdown").textContent = modelName;
-                } else {
-                    alert("Failed to switch LLM.");
-                }
-            } catch (error) {
-                console.error("Error selecting LLM:", error);
-            }
+            // Display bot response (Green background)
+            const botMsgElement = document.createElement("div");
+            botMsgElement.innerHTML = `
+                <strong>Bot:</strong> ${data.summary} <br>
+                <strong>Source:</strong>
+                <ul>
+                    ${data.source_urls.map(url => `<li><a href="${url}" target="_blank">${url}</a></li>`).join("")}
+                </ul>
+            `;
+            botMsgElement.style.backgroundColor = "#d4edda";
+            botMsgElement.style.padding = "8px";
+            botMsgElement.style.borderRadius = "5px";
+            botMsgElement.style.marginBottom = "5px";
+            chatMessages.appendChild(botMsgElement);
+        } catch (error) {
+            spinner.style.display = "none";
+            console.error("Error fetching response:", error);
         }
+    });
 
-        const chatForm = document.getElementById("chat-form");
-        const chatMessages = document.getElementById("chat-messages");
-        const spinner = document.getElementById("spinner");
+    async function selectLLM(modelName) {
+        try {
+            await fetch(`/news/llm/select/${modelName}`, { method: "POST" });
+            document.getElementById("llmDropdown").textContent = modelName;
+            changeBackgroundColor(modelName);
+        } catch (error) {
+            console.error("Error selecting LLM:", error);
+        }
+    }
 
-        chatForm.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const input = document.getElementById("chat-input").value;
 
-            const userMessage = document.createElement("div");
-            userMessage.className = "alert alert-primary";
-            userMessage.textContent = input;
-            chatMessages.appendChild(userMessage);
+    function changeBackgroundColor(modelName) {
+        const chatContainer = document.querySelector(".chat-container");
+        const colors = {
+            openai: "#e0f7fa",
+            gemini: "#f3e5f5",
+            groq: "#fff3e0"
+        };
+        chatContainer.style.backgroundColor = colors[modelName] || "#ffffff";
+    }
+});
+document.addEventListener("DOMContentLoaded", function () {
+    // Toggle summary text visibility
+    document.querySelectorAll(".toggle-summary").forEach(button => {
+        button.addEventListener("click", function () {
+            const summaryId = this.getAttribute("data-id");
+            const preview = document.getElementById(`preview-${summaryId}`);
+            const fullText = document.getElementById(`full-${summaryId}`);
 
-            chatForm.reset();
-            spinner.style.display = "block";
-
-            try {
-                const response = await fetch("/news/generate-news", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ prompt: input }),
-                });
-
-                const data = await response.json();
-                spinner.style.display = "none";
-
-                const botMessage = document.createElement("div");
-                botMessage.className = "alert alert-secondary";
-                botMessage.innerHTML = `<p>${data.summary || "No response available."}</p>`;
-
-                if (data.source) {
-                    const sourceList = document.createElement("ul");
-                    data.source.forEach(url => {
-                        const link = document.createElement("a");
-                        link.href = url;
-                        link.textContent = url.split("/")[2]; // Extracts domain for readability
-                        link.target = "_blank"; // Open in new tab
-                        link.style.display = "block";
-
-                        const listItem = document.createElement("li");
-                        listItem.appendChild(link);
-                        sourceList.appendChild(listItem);
-                    });
-                    botMessage.appendChild(sourceList);
-                }
-
-                chatMessages.appendChild(botMessage);
-            } catch (error) {
-                console.error("Error fetching response:", error);
-                spinner.style.display = "none";
+            if (preview.style.display === "none") {
+                preview.style.display = "inline";
+                fullText.style.display = "none";
+                this.textContent = "Read More";
+            } else {
+                preview.style.display = "none";
+                fullText.style.display = "inline";
+                this.textContent = "Show Less";
             }
-
-            chatMessages.scrollTop = chatMessages.scrollHeight;
         });
+    });
+
+    // Toggle source URLs visibility
+    document.querySelectorAll(".toggle-urls").forEach(button => {
+        button.addEventListener("click", function () {
+            const urlsId = this.getAttribute("data-id");
+            const urlContainer = document.getElementById(`urls-${urlsId}`);
+
+            if (urlContainer.style.display === "none" || urlContainer.style.display === "") {
+                urlContainer.style.display = "block";
+                this.textContent = "Hide URLs";
+            } else {
+                urlContainer.style.display = "none";
+                this.textContent = "Show URLs";
+            }
+        });
+    });
+});
+
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>

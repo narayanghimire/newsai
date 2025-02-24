@@ -1,17 +1,12 @@
 import asyncio
 import os
-import urllib.parse
 from datetime import datetime, timedelta
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import HTTPException
 from newspaper import Article
-
-from app.model.models import NewsSource
 from sqlalchemy.orm import Session
 from app.model.models import SummarizedArticle
-from app.schemas.schemas import NewsKeywordResponse
 
 load_dotenv()
 
@@ -99,8 +94,8 @@ class NewsService:
     def get_summarized_articles(user_id: int, db: Session):
         summaries = (
             db.query(SummarizedArticle)
-            .join(NewsSource)
             .filter(SummarizedArticle.user_id == user_id)
+            .order_by(SummarizedArticle.created_at.desc())  # Order by latest first
             .all()
         )
 
@@ -109,7 +104,10 @@ class NewsService:
                 "summary_id": summary.summary_id,
                 "summarized_content": summary.summarized_content,
                 "prompt": summary.prompt,
+                "llm_model": summary.llm_model,
                 "created_at": summary.created_at,
+                "source_urls": [article.url for article in summary.articles],
             }
             for summary in summaries
         ]
+

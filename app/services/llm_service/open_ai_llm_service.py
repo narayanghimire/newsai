@@ -1,9 +1,7 @@
-import httpx
-from bs4 import BeautifulSoup, Comment
 from openai import OpenAI
 from typing import List, Dict
 
-from app.schemas.schemas import NewsKeywordResponse, NewsSummaryResponse, ExtractedRawHtmlResponse
+from app.schemas.schemas import NewsKeywordResponse, NewsSummaryResponse
 from app.services.llm_service.base_llm_service import BaseLLMService
 
 class OpenAILLMService(BaseLLMService):
@@ -22,24 +20,31 @@ class OpenAILLMService(BaseLLMService):
                 {
                     "role": "developer",
                     "content": (
-                        "You are an AI that extracts **highly relevant search queries** "
-                        "for news articles. Always return a JSON object with 'search_query' and 'keywords'."
+                        "You are an AI that generates highly relevant and optimized search queries "
+                        "for retrieving the most accurate news articles from News API. "
+                        "Your job is to understand the user's intent, correct spelling mistakes, "
+                        "and construct a well-formatted query that improves search accuracy."
                     )
                 },
                 {
                     "role": "user",
                     "content": (
-                        f"Extract the most relevant search query for the News API from this prompt: '{prompt}'.\n"
-                        "Format it according to News API guidelines:\n"
-                        "- Avoid using too many quotes (\"). Use them only for short, critical phrases.\n"
-                        "- Use 'AND' between keywords (e.g., Google AND Gulf AND America).\n"
-                        "- Do NOT use '+' or '-' operators (they are not needed for NewsAPI).\n"
-                        "- If a phrase is too specific, break it into individual keywords.\n\n"
-                        "Return the JSON format:\n"
+                        f"Analyze the user's request and generate an optimized search query for the News API.\n"
+                        "- First, **correct any spelling mistakes** in the user's input.\n"
+                        "- Then, **understand the intent** behind the request. The query does not have to be an exact match but should be relevant.\n"
+                        "- If the user provides a very specific topic, broaden it slightly while maintaining relevance.\n"
+                        "- If the request is too broad, refine it to ensure the News API returns **accurate and relevant news**.\n\n"
+                        "**Guidelines for formatting the query:**\n"
+                        "- Use 'AND' between important keywords (e.g., Google AND Gulf AND America).\n"
+                        "- Avoid using unnecessary punctuation like extra quotes (\").\n"
+                        "- Do NOT use '+' or '-' operators (not needed for News API).\n"
+                        "- If a phrase is too specific, break it into meaningful keywords.\n\n"
+                        "**Return the JSON format:**\n"
                         "{\n"
-                        "  \"search_query\": \"formatted query\",\n"
+                        "  \"search_query\": \"optimized query\",\n"
                         "  \"keywords\": [\"keyword1\", \"keyword2\", \"keyword3\"]\n"
-                        "}"
+                        "}\n\n"
+                        f"User's request: '{prompt}'"
                     )
                 }
             ],
@@ -89,7 +94,9 @@ class OpenAILLMService(BaseLLMService):
                             Summarize the following news articles, ensuring the summary is directly relevant to this user query: 
                             '{prompt}'
 
-                            Only summarize details that answer the user's question. Avoid unrelated information.
+                            Only summarize details that answer the user's question. Avoid unrelated information and Please avoid 
+                            adding unnecessary stuff in the summary (for example: Prompt is asking english football and summary response
+                            should not contain about English cricket).
                             During Summarization , it should use easy english language without using complicated and difficult words and 
                             engaging article.
                             Additionally, **explicitly list the source URLs** that were used in the summary.
@@ -99,7 +106,7 @@ class OpenAILLMService(BaseLLMService):
 
                             **Format the response as follows:**
                             Summary: <Your summary here>
-                            Sources: <List of URLs used in the summary>
+                            source_urls: <List of URLs used in the summary>
                         """
                     }
                 ],
