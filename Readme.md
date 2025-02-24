@@ -1,4 +1,4 @@
-# AI-Powered News Aggregation and Summarization System
+# AI-Powered News Summarization System
 
 ## Project Title
 - **AI-Powered News Aggregation and Summarization System**
